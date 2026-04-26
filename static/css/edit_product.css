@@ -1,0 +1,131 @@
+/* Стили для формы редактирования/добавления товара */
+
+.back-btn {
+    margin-bottom: 20px;
+}
+
+.edit-product-form {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.edit-product-form .form-group {
+    margin-bottom: 20px;
+}
+
+.edit-product-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #333;
+}
+
+.edit-product-form .form-control {
+    padding: 10px;
+    font-size: 16px;
+}
+
+.edit-product-form textarea.form-control {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Текущее изображение */
+.current-image {
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.current-image img {
+    max-width: 300px;
+    max-height: 200px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 5px;
+    background-color: #f8f8f8;
+}
+
+/* Поле загрузки файла */
+.edit-product-form input[type="file"] {
+    padding: 8px;
+    border: 1px dashed #ddd;
+    background-color: #f8f8f8;
+}
+
+.edit-product-form input[type="file"]:hover {
+    border-color: #00FA9A;
+}
+
+/* Действия формы */
+.form-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.form-actions .btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
+}
+
+.submit-btn {
+    background-color: #00FA9A;
+    color: #000;
+}
+
+.submit-btn:hover {
+    background-color: #00E68A;
+}
+
+.cancel-btn {
+    background-color: #7FFF00;
+    color: #000;
+}
+
+.cancel-btn:hover {
+    background-color: #6CE600;
+}
+
+/* Сообщения об ошибках валидации */
+.error-message {
+    color: #dc3545;
+    font-size: 12px;
+    margin-top: 5px;
+    display: none;
+}
+
+.form-control.invalid {
+    border-color: #dc3545;
+}
+
+.form-control.invalid + .error-message {
+    display: block;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .edit-product-form {
+        padding: 15px;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .edit-product-form {
+        padding: 10px;
+    }
+    
+    .current-image img {
+        max-width: 100%;
+    }
+}

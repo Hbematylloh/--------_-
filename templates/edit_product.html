@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product %}Редактирование товара{% else %}Добавление товара{% endif %} - АвтоПартс{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/edit_product.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="logo-container">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="АвтоПартс" class="logo">
+        <div>
+
+            <p>{% if product %}Редактирование товара{% else %}Добавление товара{% endif %}</p>
+        </div>
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">{{ session.full_name }}</div>
+        <div class="user-role">{{ session.role }}</div>
+        <a href="{{ url_for('logout') }}" class="btn btn-secondary logout-btn">Выход</a>
+    </div>
+</div>
+
+<div class="container">
+    <a href="{{ url_for('products') }}" class="btn btn-secondary back-btn">← Назад к товарам</a>
+    
+    <form method="POST" enctype="multipart/form-data" class="edit-product-form">
+        {% if product %}
+            <div class="form-group">
+                <label>ID товара:</label>
+                <input type="text" class="form-control" value="{{ product.id }}" readonly>
+            </div>
+            
+            <div class="form-group">
+                <label>Артикул (SKU):</label>
+                <input type="text" name="sku" class="form-control" value="{{ product.sku }}" required>
+            </div>
+        {% else %}
+            <div class="form-group">
+                <label>Артикул (SKU):</label>
+                <input type="text" class="form-control" value="Будет сгенерирован автоматически" readonly>
+            </div>
+        {% endif %}
+        
+        <div class="form-group">
+            <label for="name">Наименование товара:</label>
+            <input type="text" id="name" name="name" class="form-control" 
+                   value="{{ product.name if product else '' }}" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Описание товара:</label>
+            <textarea id="description" name="description" class="form-control" rows="4">{{ product.description if product else '' }}</textarea>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label for="category_id">Категория:</label>
+                <select id="category_id" name="category_id" class="form-control" required>
+                    <option value="">Выберите категорию</option>
+                    {% for category in categories %}
+                        <option value="{{ category.id }}" 
+                                {% if product and product.category_id == category.id %}selected{% endif %}>
+                            {{ category.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="manufacturer_id">Производитель:</label>
+                <select id="manufacturer_id" name="manufacturer_id" class="form-control" required>
+                    <option value="">Выберите производителя</option>
+                    {% for manufacturer in manufacturers %}
+                        <option value="{{ manufacturer.id }}" 
+                                {% if product and product.manufacturer_id == manufacturer.id %}selected{% endif %}>
+                            {{ manufacturer.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label for="supplier_id">Поставщик:</label>
+                <select id="supplier_id" name="supplier_id" class="form-control" required>
+                    <option value="">Выберите поставщика</option>
+                    {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}" 
+                                {% if product and product.supplier_id == supplier.id %}selected{% endif %}>
+                            {{ supplier.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="unit">Единица измерения:</label>
+                <input type="text" id="unit" name="unit" class="form-control" 
+                       value="{{ product.unit if product else '' }}" required>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label for="price">Цена (₽):</label>
+                <input type="number" id="price" name="price" class="form-control" 
+                       step="0.01" min="0"
+                       value="{{ product.price if product else '' }}" required>
+                <small class="form-hint">Не может быть отрицательной</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="discount_percent">Скидка (%):</label>
+                <input type="number" id="discount_percent" name="discount_percent" class="form-control" 
+                       step="0.01" min="0" max="100"
+                       value="{{ product.discount_percent if product else '0' }}">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label for="stock_quantity">Количество на складе:</label>
+                <input type="number" id="stock_quantity" name="stock_quantity" class="form-control" 
+                       min="0"
+                       value="{{ product.stock_quantity if product else '0' }}" required>
+                <small class="form-hint">Не может быть отрицательным</small>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="image">Изображение товара:</label>
+            {% if product and product.image_path %}
+                <div class="current-image">
+                    <img src="{{ url_for('static', filename=product.image_path) }}" 
+                         alt="Текущее изображение">
+                </div>
+            {% endif %}
+            <input type="file" id="image" name="image" class="form-control" accept="image/*">
+            <small class="form-hint">Рекомендуемый размер: 300×200 пикселей</small>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary submit-btn">
+                {% if product %}Сохранить изменения{% else %}Добавить товар{% endif %}
+            </button>
+            <a href="{{ url_for('products') }}" class="btn btn-secondary cancel-btn">Отмена</a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

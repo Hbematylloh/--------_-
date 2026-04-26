@@ -1,0 +1,88 @@
+/* Стили для страницы входа */
+
+.login-container {
+    max-width: 400px;
+    margin: 100px auto;
+    padding: 30px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    animation: fadeIn 0.5s ease-out;
+}
+
+.login-logo {
+    display: block;
+    margin: 0 auto 20px;
+    max-width: 200px;
+    height: auto;
+}
+
+.login-container h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.login-form {
+    margin-top: 20px;
+}
+
+.login-form .form-group {
+    margin-bottom: 20px;
+}
+
+.login-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
+.login-form .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.login-form .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+}
+
+.login-form .actions .btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
+}
+
+.test-accounts {
+    margin-top: 25px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+}
+
+.test-accounts p {
+    margin-bottom: 8px;
+}
+
+.test-accounts p:first-child {
+    font-weight: bold;
+    color: #333;
+}
+
+@media (max-width: 480px) {
+    .login-container {
+        margin: 50px auto;
+        padding: 20px;
+    }
+    
+    .login-form .actions {
+        flex-direction: column;
+    }
+}

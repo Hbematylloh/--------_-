@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Вход в систему - АвтоПартс{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="АвтоПартс" class="login-logo">
+    <h2>Вход в систему</h2>
+    
+    <form method="POST" class="login-form">
+        <div class="form-group">
+            <label for="username">Логин:</label>
+            <input type="text" id="username" name="username" class="form-control" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Пароль:</label>
+            <input type="password" id="password" name="password" class="form-control" required>
+        </div>
+        
+        <div class="actions">
+            <button type="submit" class="btn btn-primary">Войти</button>
+            <a href="{{ url_for('guest') }}" class="btn btn-secondary">Продолжить как гость</a>
+        </div>
+    </form>
+    
+    <div class="test-accounts">
+        <p>Тестовые учетные записи:</p>
+        <p><small>Администратор: соколов_да / kmO5ORlb%G9Z</small></p>
+        <p><small>Менеджер: петрова_ас / uP4%O6OB^f3A</small></p>
+        <p><small>Клиент: кузнецов_ап / hX50n&u&Zuf*</small></p>
+    </div>
+</div>
+{% endblock %}
