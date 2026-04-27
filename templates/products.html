@@ -26,7 +26,6 @@
 <div class="container">
     <h2>Каталог товаров</h2>
     
-    {% if session.role in ['Менеджер', 'Администратор', 'АвторизованныйКлиент'] %}
     <div class="filters">
         <div class="form-group">
             <label for="search">Поиск:</label>
@@ -57,7 +56,6 @@
             </button>
         </div>
     </div>
-    {% endif %}
     
     {% if session.role == 'Администратор' %}
     <div class="admin-actions">
@@ -111,7 +109,7 @@
             
             <div class="product-actions">
                 {% if session.role == 'АвторизованныйКлиент' and product.stock_quantity > 0 %}
-                    <button class="btn btn-primary order-btn">Заказать</button>
+                    <button class="btn btn-primary order-btn" onclick="orderProduct({{ product.id }})">Заказать</button>
                 {% endif %}
                 
                 {% if session.role == 'Администратор' %}
@@ -120,7 +118,8 @@
                            class="btn btn-secondary">Редактировать</a>
                         <a href="{{ url_for('delete_product', product_id=product.id) }}" 
                            class="btn btn-danger delete-btn" 
-                           data-product-name="{{ product.name }}">Удалить</a>
+                           data-product-name="{{ product.name }}"
+                           onclick="return confirm('Вы уверены, что хотите удалить товар \'{{ product.name }}\'?')">Удалить</a>
                     </div>
                 {% endif %}
             </div>
@@ -133,4 +132,110 @@
     </div>
 </div>
 
+<script>
+    let debounceTimer;
+    
+    document.getElementById('search').addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(updateProducts, 300);
+    });
+    
+    document.getElementById('supplier').addEventListener('change', updateProducts);
+    
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const sortBy = this.dataset.sort;
+            const currentSortBy = '{{ sort_by }}';
+            let sortOrder = 'asc';
+            
+            if (currentSortBy === sortBy) {
+                sortOrder = '{{ sort_order }}' === 'asc' ? 'desc' : 'asc';
+            }
+            
+            updateProducts(sortBy, sortOrder);
+        });
+    });
+    
+    let currentSortBy = '{{ sort_by }}';
+    let currentSortOrder = '{{ sort_order }}';
+    
+    function updateProducts(sortBy = currentSortBy, sortOrder = currentSortOrder) {
+        currentSortBy = sortBy;
+        currentSortOrder = sortOrder;
+        
+        const search = document.getElementById('search').value;
+        const supplier = document.getElementById('supplier').value;
+        
+        fetch(`/api/products?search=${encodeURIComponent(search)}&supplier=${encodeURIComponent(supplier)}&sort_by=${sortBy}&sort_order=${sortOrder}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.products) {
+                    updateProductsDisplay(data.products);
+                }
+            })
+            .catch(error => console.error('Ошибка:', error));
+    }
+    
+    function updateProductsDisplay(products) {
+        const container = document.getElementById('products-container');
+        const userRole = '{{ session.role }}';
+        
+        if (products.length === 0) {
+            container.innerHTML = '<div class="no-products"><p>Товары не найдены</p></div>';
+            return;
+        }
+        
+        container.innerHTML = products.map(product => {
+            const discountClass = product.discount_percent > 15 ? 'discount-high' : '';
+            const stockClass = product.stock_quantity === 0 ? 'stock-zero' : '';
+            const imagePath = product.image_path ? `/static/${product.image_path}` : '/static/picture.png';
+            
+            let priceHtml = '';
+            if (product.discount_percent > 0) {
+                priceHtml = `
+                    <span class="old-price">${product.price.toFixed(2)} ₽</span>
+                    <span class="final-price">${product.final_price.toFixed(2)} ₽</span>
+                `;
+            } else {
+                priceHtml = `${product.price.toFixed(2)} ₽`;
+            }
+            
+            let actionsHtml = '';
+            if (userRole === 'АвторизованныйКлиент' && product.stock_quantity > 0) {
+                actionsHtml = `<button class="btn btn-primary order-btn" onclick="orderProduct(${product.id})">Заказать</button>`;
+            } else if (userRole === 'Администратор') {
+                actionsHtml = `
+                    <div class="admin-buttons">
+                        <a href="/product/edit/${product.id}" class="btn btn-secondary">Редактировать</a>
+                        <a href="/product/delete/${product.id}" class="btn btn-danger delete-btn" 
+                           onclick="return confirm('Вы уверены, что хотите удалить товар \'${product.name}\'?')">Удалить</a>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="product-card ${discountClass} ${stockClass}">
+                    <img src="${imagePath}" alt="${product.name}" class="product-image">
+                    <div class="product-name">${product.name}</div>
+                    ${product.discount_percent > 0 ? `<div class="discount-badge">Скидка ${product.discount_percent}%</div>` : ''}
+                    <div class="product-price">${priceHtml}</div>
+                    <div class="product-info">
+                        Категория: ${product.category_name}<br>
+                        Производитель: ${product.manufacturer_name}<br>
+                        Поставщик: ${product.supplier_name}<br>
+                        Единица: ${product.unit}<br>
+                        На складе: <span class="stock-quantity">${product.stock_quantity}</span>
+                    </div>
+                    <div class="product-actions">
+                        ${actionsHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    function orderProduct(productId) {
+        alert('Функция оформления заказа будет реализована в следующей версии');
+    }
+</script>
 {% endblock %}

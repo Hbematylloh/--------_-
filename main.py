@@ -5,9 +5,10 @@ from psycopg2.extras import RealDictCursor
 import os
 from PIL import Image
 import io
+import hashlib
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # Измените на случайный секретный ключ
+app.secret_key = 'your-secret-key-here-change-this-in-production'
 bcrypt = Bcrypt(app)
 
 # Конфигурация базы данных
@@ -15,13 +16,18 @@ DB_CONFIG = {
     'host': 'localhost',
     'database': 'shop_db',
     'user': 'postgres',
-    'password': '123'  # Измените на свой пароль
+    'password': '123'
 }
 
 def get_db_connection():
     conn = psycopg2.connect(**DB_CONFIG)
     conn.autocommit = False
     return conn
+
+# Вспомогательная функция для хеширования паролей (так как в БД пароли хранятся открыто)
+def verify_password(stored_password, input_password):
+    # В данном проекте пароли в БД хранятся открыто
+    return stored_password == input_password
 
 # Главная страница - вход в систему
 @app.route('/', methods=['GET', 'POST'])
@@ -37,7 +43,7 @@ def login():
             cur.execute("SELECT * FROM users WHERE login = %s", (username,))
             user = cur.fetchone()
             
-            if user and user['password_hash'] == password:  # В реальном приложении используйте bcrypt
+            if user and verify_password(user['password_hash'], password):
                 session['user_id'] = user['id']
                 session['username'] = user['login']
                 session['full_name'] = user['full_name']
@@ -66,6 +72,7 @@ def logout():
 def guest():
     session['role'] = 'Гость'
     session['full_name'] = 'Гость'
+    session['username'] = 'guest'
     return redirect(url_for('products'))
 
 # Страница товаров
@@ -148,7 +155,7 @@ def products():
                          sort_by=sort_by,
                          sort_order=sort_order)
 
-# API для получения товаров (для AJAX)
+# API для получения товаров (для AJAX) - работаем в реальном времени
 @app.route('/api/products')
 def api_products():
     if 'role' not in session:
@@ -203,6 +210,11 @@ def api_products():
         cur.execute(query, params)
         products = cur.fetchall()
         
+        # Преобразование для JSON
+        for product in products:
+            product['final_price'] = float(product['final_price']) if product['final_price'] else 0
+            product['price'] = float(product['price']) if product['price'] else 0
+        
         return jsonify({'products': products})
         
     except Exception as e:
@@ -216,7 +228,7 @@ def api_products():
 @app.route('/product/add', methods=['GET', 'POST'])
 def edit_product(product_id=None):
     if session.get('role') != 'Администратор':
-        flash('Доступ запрещен', 'error')
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
         return redirect(url_for('products'))
     
     conn = get_db_connection()
@@ -240,6 +252,10 @@ def edit_product(product_id=None):
                 flash('Цена не может быть отрицательной', 'error')
                 return redirect(request.url)
             
+            if discount_percent < 0 or discount_percent > 100:
+                flash('Скидка должна быть от 0 до 100 процентов', 'error')
+                return redirect(request.url)
+            
             if stock_quantity < 0:
                 flash('Количество на складе не может быть отрицательным', 'error')
                 return redirect(request.url)
@@ -248,22 +264,54 @@ def edit_product(product_id=None):
             image_path = None
             if 'image' in request.files:
                 image_file = request.files['image']
-                if image_file.filename:
-                    # Проверка размера изображения
+                if image_file and image_file.filename:
+                    # Проверка расширения файла
+                    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
+                    file_ext = image_file.filename.rsplit('.', 1)[1].lower() if '.' in image_file.filename else ''
+                    
+                    if file_ext not in allowed_extensions:
+                        flash('Неподдерживаемый формат изображения. Используйте PNG, JPG, JPEG, GIF или BMP.', 'error')
+                        return redirect(request.url)
+                    
+                    # Создание директории если не существует
+                    os.makedirs('static/images/products', exist_ok=True)
+                    
+                    # Создание имени файла
+                    if product_id:
+                        image_filename = f"product_{product_id}_{image_file.filename}"
+                    else:
+                        # Временное имя для нового товара
+                        image_filename = f"product_temp_{hash(image_file.filename)}_{image_file.filename}"
+                    
+                    image_path_full = f"static/images/products/{image_filename}"
+                    
+                    # Открытие и изменение размера изображения
                     img = Image.open(image_file)
-                    img.thumbnail((300, 200))
+                    
+                    # Изменение размера с сохранением пропорций
+                    img.thumbnail((300, 200), Image.Resampling.LANCZOS)
+                    
+                    # Создание белого фона нужного размера
+                    final_img = Image.new('RGB', (300, 200), (255, 255, 255))
+                    offset = ((300 - img.size[0]) // 2, (200 - img.size[1]) // 2)
+                    final_img.paste(img, offset)
                     
                     # Сохранение изображения
-                    image_filename = f"product_{sku}_{image_file.filename}"
-                    image_path = f"static/images/products/{image_filename}"
-                    img.save(image_path)
+                    final_img.save(image_path_full, optimize=True, quality=85)
+                    image_path = image_path_full
                     
                     # Удаление старого изображения при редактировании
                     if product_id:
                         cur.execute("SELECT image_path FROM products WHERE id = %s", (product_id,))
-                        old_image = cur.fetchone()['image_path']
-                        if old_image and os.path.exists(old_image):
-                            os.remove(old_image)
+                        old_image = cur.fetchone()
+                        if old_image and old_image['image_path']:
+                            old_path = old_image['image_path']
+                            # Проверяем, не совпадает ли путь со старым изображением
+                            if old_path != image_path and os.path.exists(old_path):
+                                try:
+                                    os.remove(old_path)
+                                except Exception as e:
+                                    print(f"Не удалось удалить старое изображение: {e}")
             
             if product_id:  # Редактирование
                 if image_path:
@@ -290,27 +338,44 @@ def edit_product(product_id=None):
                              product_id)
                 
                 cur.execute(query, params)
+                conn.commit()
                 flash('Товар успешно обновлен', 'success')
+                return redirect(url_for('products'))
+                
             else:  # Добавление
-                # Получение следующего SKU
-                cur.execute("SELECT COALESCE(MAX(CAST(sku AS INTEGER)), 0) + 1 as next_sku FROM products")
-                next_sku = cur.fetchone()['next_sku']
+                # Проверка на существование SKU
+                cur.execute("SELECT id FROM products WHERE sku = %s", (sku,))
+                if cur.fetchone():
+                    flash('Товар с таким артикулом уже существует', 'error')
+                    return redirect(request.url)
                 
                 query = """
                 INSERT INTO products (sku, name, description, category_id, 
                                     manufacturer_id, supplier_id, unit, price,
                                     discount_percent, stock_quantity, image_path)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
                 """
-                params = (next_sku, name, description, category_id, manufacturer_id,
+                params = (sku, name, description, category_id, manufacturer_id,
                          supplier_id, unit, price, discount_percent, stock_quantity,
                          image_path)
                 
                 cur.execute(query, params)
+                new_id = cur.fetchone()['id']
+                conn.commit()
+                
+                # Если было временное изображение, переименовываем его
+                if image_path and 'temp' in image_path:
+                    new_image_path = f"static/images/products/product_{new_id}_{image_file.filename}"
+                    try:
+                        os.rename(image_path, new_image_path)
+                        cur.execute("UPDATE products SET image_path = %s WHERE id = %s", (new_image_path, new_id))
+                        conn.commit()
+                    except Exception as e:
+                        print(f"Ошибка переименования изображения: {e}")
+                
                 flash('Товар успешно добавлен', 'success')
-            
-            conn.commit()
-            return redirect(url_for('products'))
+                return redirect(url_for('products'))
             
         except Exception as e:
             conn.rollback()
@@ -336,6 +401,9 @@ def edit_product(product_id=None):
             if product_id:
                 cur.execute("SELECT * FROM products WHERE id = %s", (product_id,))
                 product = cur.fetchone()
+                if not product:
+                    flash('Товар не найден', 'error')
+                    return redirect(url_for('products'))
             
             return render_template('edit_product.html',
                                  product=product,
@@ -354,13 +422,21 @@ def edit_product(product_id=None):
 @app.route('/product/delete/<int:product_id>')
 def delete_product(product_id):
     if session.get('role') != 'Администратор':
-        flash('Доступ запрещен', 'error')
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
         return redirect(url_for('products'))
     
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
+        # Получение информации о товаре
+        cur.execute("SELECT name, image_path FROM products WHERE id = %s", (product_id,))
+        product = cur.fetchone()
+        
+        if not product:
+            flash('Товар не найден', 'error')
+            return redirect(url_for('products'))
+        
         # Проверка, есть ли товар в заказах
         cur.execute("""
         SELECT COUNT(*) as order_count 
@@ -371,21 +447,20 @@ def delete_product(product_id):
         result = cur.fetchone()
         
         if result['order_count'] > 0:
-            flash('Нельзя удалить товар, который присутствует в заказах', 'error')
+            flash(f'Нельзя удалить товар "{product["name"]}", который присутствует в заказах', 'error')
         else:
-            # Получение пути к изображению для удаления
-            cur.execute("SELECT image_path FROM products WHERE id = %s", (product_id,))
-            image_path = cur.fetchone()['image_path']
-            
             # Удаление товара
             cur.execute("DELETE FROM products WHERE id = %s", (product_id,))
             conn.commit()
             
             # Удаление изображения
-            if image_path and os.path.exists(image_path):
-                os.remove(image_path)
+            if product['image_path'] and os.path.exists(product['image_path']):
+                try:
+                    os.remove(product['image_path'])
+                except Exception as e:
+                    print(f"Не удалось удалить изображение: {e}")
             
-            flash('Товар успешно удален', 'success')
+            flash(f'Товар "{product["name"]}" успешно удален', 'success')
         
     except Exception as e:
         conn.rollback()
@@ -400,7 +475,7 @@ def delete_product(product_id):
 @app.route('/orders')
 def orders():
     if session.get('role') not in ['Менеджер', 'Администратор']:
-        flash('Доступ запрещен', 'error')
+        flash('Доступ запрещен. Требуются права менеджера или администратора.', 'error')
         return redirect(url_for('products'))
     
     conn = get_db_connection()
@@ -409,7 +484,8 @@ def orders():
     try:
         query = """
         SELECT o.*, u.full_name as user_name, pp.address as pickup_address,
-               COUNT(oi.id) as items_count, o.total_amount
+               COALESCE(SUM(oi.quantity * oi.price_at_moment * (1 - oi.discount_percent_moment/100)), 0) as total_amount,
+               COUNT(oi.id) as items_count
         FROM orders o
         LEFT JOIN users u ON o.user_id = u.id
         LEFT JOIN pickup_points pp ON o.pickup_point_id = pp.id
@@ -421,6 +497,10 @@ def orders():
         cur.execute(query)
         orders_list = cur.fetchall()
         
+        # Преобразование для отображения
+        for order in orders_list:
+            order['total_amount'] = float(order['total_amount']) if order['total_amount'] else 0
+        
     except Exception as e:
         flash(f'Ошибка при загрузке заказов: {str(e)}', 'error')
         orders_list = []
@@ -430,9 +510,73 @@ def orders():
     
     return render_template('orders.html', orders=orders_list)
 
+# Изменение статуса заказа (API для AJAX)
+@app.route('/api/order/<int:order_id>/status', methods=['POST'])
+def update_order_status(order_id):
+    if session.get('role') not in ['Менеджер', 'Администратор']:
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    data = request.get_json()
+    new_status = data.get('status')
+    
+    valid_statuses = ['placed', 'processing', 'shipped', 'delivered', 'cancelled']
+    if new_status not in valid_statuses:
+        return jsonify({'error': 'Неверный статус'}), 400
+    
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    try:
+        cur.execute("UPDATE orders SET status = %s WHERE id = %s RETURNING id", (new_status, order_id))
+        result = cur.fetchone()
+        
+        if not result:
+            return jsonify({'error': 'Заказ не найден'}), 404
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Статус заказа обновлен'})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+# Детали заказа (API)
+@app.route('/api/order/<int:order_id>/details')
+def order_details(order_id):
+    if session.get('role') not in ['Менеджер', 'Администратор']:
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    try:
+        query = """
+        SELECT oi.*, p.name as product_name, p.sku as product_sku
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = %s
+        """
+        cur.execute(query, (order_id,))
+        items = cur.fetchall()
+        
+        for item in items:
+            item['price_at_moment'] = float(item['price_at_moment'])
+            item['discount_percent_moment'] = float(item['discount_percent_moment'])
+        
+        return jsonify({'items': items, 'count': len(items)})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
 if __name__ == '__main__':
     # Создание необходимых директорий
     os.makedirs('static/images/products', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     
-    app.run(debug=True, port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
