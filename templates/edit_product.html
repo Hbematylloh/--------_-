@@ -11,7 +11,6 @@
     <div class="logo-container">
         <img src="{{ url_for('static', filename='logo.png') }}" alt="АвтоПартс" class="logo">
         <div>
-
             <p>{% if product %}Редактирование товара{% else %}Добавление товара{% endif %}</p>
         </div>
     </div>
@@ -26,23 +25,35 @@
 <div class="container">
     <a href="{{ url_for('products') }}" class="btn btn-secondary back-btn">← Назад к товарам</a>
     
-    <form method="POST" enctype="multipart/form-data" class="edit-product-form">
+    <form method="POST" enctype="multipart/form-data" class="edit-product-form" id="productForm">
         {% if product %}
             <div class="form-group">
                 <label>ID товара:</label>
                 <input type="text" class="form-control" value="{{ product.id }}" readonly>
             </div>
-            
-            <div class="form-group">
-                <label>Артикул (SKU):</label>
-                <input type="text" name="sku" class="form-control" value="{{ product.sku }}" required>
-            </div>
-        {% else %}
-            <div class="form-group">
-                <label>Артикул (SKU):</label>
-                <input type="text" class="form-control" value="Будет сгенерирован автоматически" readonly>
-            </div>
         {% endif %}
+        
+        <div class="form-group">
+            <label for="sku">Артикул (SKU):</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="sku" name="sku" class="form-control" 
+                       value="{{ product.sku if product else '' }}" 
+                       placeholder="Оставьте пустым для автоматической генерации"
+                       style="flex: 1;">
+                {% if not product %}
+                    <button type="button" id="generateSkuBtn" class="btn btn-secondary" style="white-space: nowrap;">
+                        🎲 Сгенерировать
+                    </button>
+                {% endif %}
+            </div>
+            <small class="form-hint">
+                {% if not product %}
+                    Оставьте поле пустым - артикул сгенерируется автоматически при сохранении
+                {% else %}
+                    Артикул товара (должен быть уникальным)
+                {% endif %}
+            </small>
+        </div>
         
         <div class="form-group">
             <label for="name">Наименование товара:</label>
@@ -71,7 +82,7 @@
             
             <div class="form-group">
                 <label for="manufacturer_id">Производитель:</label>
-                <select id="manufacturer_id" name="manufacturer_id" class="form-control" required>
+                <select id="manufacturer_id" name="manufacturer_id" class="form-control">
                     <option value="">Выберите производителя</option>
                     {% for manufacturer in manufacturers %}
                         <option value="{{ manufacturer.id }}" 
@@ -86,7 +97,7 @@
         <div class="form-row">
             <div class="form-group">
                 <label for="supplier_id">Поставщик:</label>
-                <select id="supplier_id" name="supplier_id" class="form-control" required>
+                <select id="supplier_id" name="supplier_id" class="form-control">
                     <option value="">Выберите поставщика</option>
                     {% for supplier in suppliers %}
                         <option value="{{ supplier.id }}" 
@@ -151,5 +162,91 @@
         </div>
     </form>
 </div>
+
+{% if not product %}
+<script>
+    // Автоматическая генерация артикула при изменении названия
+    let nameTimeout;
+    const skuInput = document.getElementById('sku');
+    const nameInput = document.getElementById('name');
+    const categorySelect = document.getElementById('category_id');
+    const manufacturerSelect = document.getElementById('manufacturer_id');
+    const generateBtn = document.getElementById('generateSkuBtn');
+    
+    function generateSku() {
+        const name = nameInput.value.trim();
+        if (!name) {
+            return;
+        }
+        
+        const categoryId = categorySelect.value;
+        const manufacturerId = manufacturerSelect.value;
+        
+        fetch('/api/generate-sku', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name,
+                category_id: categoryId,
+                manufacturer_id: manufacturerId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.sku) {
+                skuInput.value = data.sku;
+                skuInput.style.backgroundColor = '#e8f5e9';
+                setTimeout(() => {
+                    skuInput.style.backgroundColor = '';
+                }, 500);
+            } else if (data.error) {
+                console.error('Ошибка:', data.error);
+            }
+        })
+        .catch(error => console.error('Ошибка:', error));
+    }
+    
+    // Генерация при изменении названия (с задержкой)
+    nameInput.addEventListener('input', function() {
+        clearTimeout(nameTimeout);
+        nameTimeout = setTimeout(() => {
+            if (nameInput.value.trim() && !skuInput.value) {
+                generateSku();
+            }
+        }, 500);
+    });
+    
+    // Генерация при изменении категории или производителя
+    categorySelect.addEventListener('change', function() {
+        if (nameInput.value.trim() && !skuInput.value) {
+            generateSku();
+        }
+    });
+    
+    manufacturerSelect.addEventListener('change', function() {
+        if (nameInput.value.trim() && !skuInput.value) {
+            generateSku();
+        }
+    });
+    
+    // Ручная генерация по кнопке
+    if (generateBtn) {
+        generateBtn.addEventListener('click', function() {
+            if (nameInput.value.trim()) {
+                generateSku();
+            } else {
+                alert('Сначала введите название товара');
+            }
+        });
+    }
+    
+    // Очистка фона при ручном вводе
+    skuInput.addEventListener('input', function() {
+        skuInput.style.backgroundColor = '';
+    });
+</script>
+{% endif %}
 
 {% endblock %}

@@ -54,17 +54,23 @@
 
 /* Фильтры */
 .filters {
-    background-color: #f5f5f5;
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
+    background: #f5f5f5;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.search-input {
+    margin-bottom: 15px;
+}
+
+.supplier-filter {
+    margin-bottom: 15px;
 }
 
 .filters .form-group {
-    margin-bottom: 0;
+    margin-bottom: 15px;
 }
 
 .filters label {
@@ -76,14 +82,29 @@
 
 .sort-controls {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    gap: 20px;
     flex-wrap: wrap;
+    margin: 15px 0;
+    padding: 10px 0;
+    border-top: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
 }
 
-.sort-controls label {
-    margin-bottom: 0;
-    font-weight: bold;
+.sort-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 5px 12px;
+    border-radius: 25px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.sort-group label {
+    margin: 0;
+    font-weight: 600;
+    font-size: 13px;
+    color: #555;
 }
 
 .sort-btn {
@@ -98,12 +119,46 @@
 
 .sort-btn:hover {
     background-color: #f0f0f0;
+    border-color: #00FA9A;
 }
 
 .sort-btn.active {
     background-color: #00FA9A;
     border-color: #00FA9A;
     color: #000;
+    font-weight: bold;
+}
+
+.sort-btn.active.asc::after {
+    content: " ↑";
+    font-size: 14px;
+}
+
+.sort-btn.active.desc::after {
+    content: " ↓";
+    font-size: 14px;
+}
+
+.filter-actions {
+    margin-top: 15px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.reset-btn {
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.reset-btn:hover {
+    background-color: #cc0000;
 }
 
 /* Действия администратора */
@@ -135,33 +190,83 @@
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
-/* Стили для высоких скидок */
+/* Стили для высоких скидок - фон карточки зеленый */
 .product-card.discount-high {
-    background-color: #2E8B57 !important;
-    color: white !important;
+    background-color: #2E8B57;
+    color: white;
 }
 
 .product-card.discount-high .product-name,
 .product-card.discount-high .product-info,
+.product-card.discount-high .product-info div,
 .product-card.discount-high .old-price,
-.product-card.discount-high .final-price,
-.product-card.discount-high .discount-badge {
-    color: white !important;
+.product-card.discount-high .final-price {
+    color: white;
 }
 
-.product-card.discount-high .btn {
-    background-color: rgba(255, 255, 255, 0.2);
+.product-card.discount-high .product-info {
     color: white;
+}
+
+/* Кнопки на карточках товаров - единый стиль для всех карточек */
+.product-card .btn {
+    background-color: #00FA9A;
+    color: #000;
+    border: none;
+    transition: all 0.3s;
+}
+
+.product-card .btn:hover {
+    background-color: #00E68A;
+    transform: translateY(-2px);
+}
+
+.product-card .btn-secondary {
+    background-color: #7FFF00;
+    color: #000;
+}
+
+.product-card .btn-secondary:hover {
+    background-color: #6CE600;
+}
+
+.product-card .btn-danger {
+    background-color: #ff4444;
+    color: white;
+}
+
+.product-card .btn-danger:hover {
+    background-color: #cc0000;
+}
+
+/* Переопределение для карточек с зеленым фоном - кнопки остаются зелеными */
+.product-card.discount-high .btn {
+    background-color: #00FA9A;
+    color: #000;
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .product-card.discount-high .btn:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: #00E68A;
+    transform: translateY(-2px);
 }
 
-/* Стили для нулевого остатка */
-.product-card.stock-zero {
-    background-color: #e0f7ff !important;
+.product-card.discount-high .btn-secondary {
+    background-color: #7FFF00;
+    color: #000;
+}
+
+.product-card.discount-high .btn-secondary:hover {
+    background-color: #6CE600;
+}
+
+.product-card.discount-high .btn-danger {
+    background-color: #ff4444;
+    color: white;
+}
+
+.product-card.discount-high .btn-danger:hover {
+    background-color: #cc0000;
 }
 
 /* Изображение товара */
@@ -181,35 +286,49 @@
     color: #333;
 }
 
+.product-card.discount-high .product-name {
+    color: white;
+}
+
 /* Бейдж скидки */
 .discount-badge {
-    background-color: #2E8B57;
+    background-color: #ff4444;
     color: white;
-    padding: 4px 10px;
+    padding: 2px 8px;
     border-radius: 12px;
-    font-size: 12px;
-    display: inline-block;
-    margin-bottom: 10px;
+    font-size: 11px;
     font-weight: bold;
+    display: inline-block;
+    margin-left: 10px;
 }
 
 /* Цены */
 .product-price {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 15px 0;
     font-size: 20px;
-    margin-bottom: 15px;
-    color: #333;
 }
 
 .old-price {
     text-decoration: line-through;
     color: #ff4444;
     font-size: 16px;
-    margin-right: 10px;
 }
 
 .final-price {
     font-weight: bold;
     color: #333;
+}
+
+.product-card.discount-high .final-price {
+    color: white;
+}
+
+.product-card.discount-high .old-price {
+    color: #ffcccc;
 }
 
 /* Информация о товаре */
@@ -220,8 +339,34 @@
     line-height: 1.5;
 }
 
-.product-info .stock-quantity {
+.product-info div {
+    margin-bottom: 5px;
+}
+
+.product-card.discount-high .product-info {
+    color: white;
+}
+
+.product-card.discount-high .product-info div {
+    color: white;
+}
+
+.stock-zero-text {
+    color: red;
     font-weight: bold;
+}
+
+.stock-low-text {
+    color: orange;
+    font-weight: bold;
+}
+
+.product-card.discount-high .stock-zero-text {
+    color: #ffcccc;
+}
+
+.product-card.discount-high .stock-low-text {
+    color: #ffffcc;
 }
 
 /* Кнопки действий */
@@ -251,6 +396,33 @@
     padding: 60px 20px;
     color: #666;
     font-size: 18px;
+    background: white;
+    border-radius: 8px;
+}
+
+.no-products-hint {
+    font-size: 14px;
+    margin-top: 10px;
+    color: #999;
+}
+
+.reset-filters-btn {
+    margin-top: 15px;
+}
+
+/* Загрузка */
+.loading {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px;
+    font-size: 18px;
+    color: #666;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* Адаптивность */
@@ -271,7 +443,25 @@
     }
     
     .filters {
-        grid-template-columns: 1fr;
+        padding: 15px;
+    }
+    
+    .sort-controls {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .sort-group {
+        justify-content: space-between;
+    }
+    
+    .filter-actions {
+        justify-content: stretch;
+    }
+    
+    .reset-btn {
+        width: 100%;
+        justify-content: center;
     }
     
     .products-grid {
@@ -299,4 +489,90 @@
     .admin-buttons {
         flex-direction: column;
     }
+    
+    .no-products {
+        padding: 40px 15px;
+        font-size: 16px;
+    }
+}
+/* Добавить в конец существующего файла products.css */
+
+/* Модальное окно для оформления заказа */
+.modal {
+    display: flex;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90%;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.modal-close {
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #aaa;
+    transition: color 0.3s;
+}
+
+.modal-close:hover {
+    color: #000;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-body p {
+    margin: 10px 0;
+}
+
+.modal-body .form-group {
+    margin: 15px 0;
+}
+
+.modal-body .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.modal-footer .btn {
+    padding: 8px 16px;
 }

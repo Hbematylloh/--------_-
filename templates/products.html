@@ -10,13 +10,14 @@
 <div class="header">
     <div class="logo-container">
         <img src="{{ url_for('static', filename='logo.png') }}" alt="АвтоПартс" class="logo">
-        <div>
-        </div>
     </div>
     
     <div class="user-info">
         <div class="user-name">{{ session.full_name }}</div>
         <div class="user-role">{{ session.role }}</div>
+        {% if session.role == 'АвторизованныйКлиент' %}
+            <a href="{{ url_for('my_orders') }}" class="btn btn-secondary" style="margin-right: 10px;">Мои заказы</a>
+        {% endif %}
         {% if session.role != 'Гость' %}
             <a href="{{ url_for('logout') }}" class="btn btn-secondary logout-btn">Выход</a>
         {% endif %}
@@ -26,15 +27,16 @@
 <div class="container">
     <h2>Каталог товаров</h2>
     
+    {% if session.role != 'Гость' %}
     <div class="filters">
-        <div class="form-group">
+        <div class="form-group search-input">
             <label for="search">Поиск:</label>
             <input type="text" id="search" class="form-control" 
-                   placeholder="Введите для поиска..." 
+                   placeholder="Введите название, описание, категорию, производителя или поставщика..." 
                    value="{{ search_query }}">
         </div>
         
-        <div class="form-group">
+        <div class="form-group supplier-filter">
             <label for="supplier">Поставщик:</label>
             <select id="supplier" class="form-control">
                 <option value="all">Все поставщики</option>
@@ -47,184 +49,254 @@
         </div>
         
         <div class="sort-controls">
-            <label>Сортировка:</label>
-            <button class="sort-btn {% if sort_by == 'stock' %}active{% endif %}" data-sort="stock">
-                По остаткам {% if sort_by == 'stock' %}({{ sort_order }}){% endif %}
-            </button>
-            <button class="sort-btn {% if sort_by == 'price' %}active{% endif %}" data-sort="price">
-                По цене {% if sort_by == 'price' %}({{ sort_order }}){% endif %}
-            </button>
+            <div class="sort-group">
+                <label>Сортировка по остаткам:</label>
+                <button class="sort-btn" data-sort="stock" data-order="asc">По возрастанию</button>
+                <button class="sort-btn" data-sort="stock" data-order="desc">По убыванию</button>
+            </div>
+            
+            <div class="sort-group">
+                <label>Сортировка по цене:</label>
+                <button class="sort-btn" data-sort="price" data-order="asc">По возрастанию</button>
+                <button class="sort-btn" data-sort="price" data-order="desc">По убыванию</button>
+            </div>
+            
+            <div class="sort-group">
+                <label>Сортировка по названию:</label>
+                <button class="sort-btn" data-sort="name" data-order="asc">А-Я</button>
+                <button class="sort-btn" data-sort="name" data-order="desc">Я-А</button>
+            </div>
+        </div>
+        
+        <div class="filter-actions">
+            <button id="resetFiltersBtn" class="reset-btn">Сбросить все фильтры</button>
         </div>
     </div>
+    {% endif %}
     
     {% if session.role == 'Администратор' %}
     <div class="admin-actions">
         <a href="{{ url_for('edit_product') }}" class="btn btn-primary">Добавить товар</a>
-        {% if session.role == 'Администратор' or session.role == 'Менеджер' %}
-            <a href="{{ url_for('orders') }}" class="btn btn-secondary">Просмотр заказов</a>
-        {% endif %}
+        <a href="{{ url_for('orders') }}" class="btn btn-secondary">Просмотр заказов</a>
+    </div>
+    {% endif %}
+    
+    {% if session.role == 'Менеджер' %}
+    <div class="admin-actions">
+        <a href="{{ url_for('orders') }}" class="btn btn-secondary">Просмотр заказов</a>
     </div>
     {% endif %}
     
     <div class="products-grid" id="products-container">
-        {% for product in products %}
-        <div class="product-card 
-                   {% if product.discount_percent > 15 %}discount-high{% endif %}
-                   {% if product.stock_quantity == 0 %}stock-zero{% endif %}"
-             data-discount="{{ product.discount_percent }}"
-             data-stock="{{ product.stock_quantity }}"
-             data-price="{{ product.price }}"
-             data-final-price="{{ product.final_price }}">
-            
-            <img src="{% if product.image_path %}{{ url_for('static', filename=product.image_path) }}{% else %}{{ url_for('static', filename='picture.png') }}{% endif %}" 
-                 alt="{{ product.name }}" 
-                 class="product-image">
-            
-            <div class="product-name">{{ product.name }}</div>
-            
-            {% if product.discount_percent > 0 %}
-                <div class="discount-badge">Скидка {{ product.discount_percent }}%</div>
-            {% endif %}
-            
-            <div class="product-price">
-                {% if product.discount_percent > 0 %}
-                    <span class="old-price">
-                        {{ "%.2f"|format(product.price) }} ₽
-                    </span>
-                    <span class="final-price">
-                        {{ "%.2f"|format(product.final_price) }} ₽
-                    </span>
-                {% else %}
-                    {{ "%.2f"|format(product.price) }} ₽
-                {% endif %}
-            </div>
-            
-            <div class="product-info">
-                Категория: {{ product.category_name }}<br>
-                Производитель: {{ product.manufacturer_name }}<br>
-                Поставщик: {{ product.supplier_name }}<br>
-                Единица: {{ product.unit }}<br>
-                На складе: <span class="stock-quantity">{{ product.stock_quantity }}</span>
-            </div>
-            
-            <div class="product-actions">
-                {% if session.role == 'АвторизованныйКлиент' and product.stock_quantity > 0 %}
-                    <button class="btn btn-primary order-btn" onclick="orderProduct({{ product.id }})">Заказать</button>
-                {% endif %}
-                
-                {% if session.role == 'Администратор' %}
-                    <div class="admin-buttons">
-                        <a href="{{ url_for('edit_product', product_id=product.id) }}" 
-                           class="btn btn-secondary">Редактировать</a>
-                        <a href="{{ url_for('delete_product', product_id=product.id) }}" 
-                           class="btn btn-danger delete-btn" 
-                           data-product-name="{{ product.name }}"
-                           onclick="return confirm('Вы уверены, что хотите удалить товар \'{{ product.name }}\'?')">Удалить</a>
-                    </div>
-                {% endif %}
-            </div>
+        <div class="loading">
+            <p>Загрузка товаров...</p>
         </div>
-        {% else %}
-        <div class="no-products">
-            <p>Товары не найдены</p>
-        </div>
-        {% endfor %}
     </div>
 </div>
 
 <script>
-    let debounceTimer;
-    
-    document.getElementById('search').addEventListener('input', function() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(updateProducts, 300);
-    });
-    
-    document.getElementById('supplier').addEventListener('change', updateProducts);
-    
-    document.querySelectorAll('.sort-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const sortBy = this.dataset.sort;
-            const currentSortBy = '{{ sort_by }}';
-            let sortOrder = 'asc';
-            
-            if (currentSortBy === sortBy) {
-                sortOrder = '{{ sort_order }}' === 'asc' ? 'desc' : 'asc';
-            }
-            
-            updateProducts(sortBy, sortOrder);
-        });
-    });
-    
+    let currentSearch = '{{ search_query }}';
+    let currentSupplier = '{{ current_supplier }}';
     let currentSortBy = '{{ sort_by }}';
     let currentSortOrder = '{{ sort_order }}';
     
-    function updateProducts(sortBy = currentSortBy, sortOrder = currentSortOrder) {
-        currentSortBy = sortBy;
-        currentSortOrder = sortOrder;
+    let debounceTimer;
+    
+    const searchInput = document.getElementById('search');
+    const supplierSelect = document.getElementById('supplier');
+    const productsContainer = document.getElementById('products-container');
+    const resetBtn = document.getElementById('resetFiltersBtn');
+    
+    function updateActiveSortButtons() {
+        document.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.classList.remove('active', 'asc', 'desc');
+            const sortBy = btn.dataset.sort;
+            const order = btn.dataset.order;
+            
+            if (sortBy === currentSortBy && order === currentSortOrder) {
+                btn.classList.add('active');
+                if (order === 'asc') {
+                    btn.classList.add('asc');
+                } else {
+                    btn.classList.add('desc');
+                }
+            }
+        });
+    }
+    
+    function loadProducts() {
+        const params = new URLSearchParams({
+            search: currentSearch,
+            supplier: currentSupplier,
+            sort_by: currentSortBy,
+            sort_order: currentSortOrder
+        });
         
-        const search = document.getElementById('search').value;
-        const supplier = document.getElementById('supplier').value;
-        
-        fetch(`/api/products?search=${encodeURIComponent(search)}&supplier=${encodeURIComponent(supplier)}&sort_by=${sortBy}&sort_order=${sortOrder}`)
+        fetch(`/api/products?${params}`)
             .then(response => response.json())
             .then(data => {
                 if (data.products) {
                     updateProductsDisplay(data.products);
+                } else if (data.error) {
+                    productsContainer.innerHTML = '<div class="no-products"><p>Ошибка: ' + data.error + '</p></div>';
                 }
             })
-            .catch(error => console.error('Ошибка:', error));
+            .catch(error => {
+                console.error('Ошибка:', error);
+                productsContainer.innerHTML = '<div class="no-products"><p>Ошибка загрузки товаров</p></div>';
+            });
     }
     
+    function showOrderModal(productId, productName, productPrice, finalPrice, discountPercent, stockQuantity) {
+        const modalHtml = `
+            <div id="orderModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Оформление заказа</h3>
+                        <span class="modal-close">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Товар:</strong> ${escapeHtml(productName)}</p>
+                        <p><strong>Цена:</strong> ${finalPrice.toFixed(2)} ₽</p>
+                        ${discountPercent > 0 ? `<p><strong>Скидка:</strong> ${discountPercent}%</p>` : ''}
+                        <p><strong>Доступно:</strong> ${stockQuantity} шт.</p>
+                        <div class="form-group">
+                            <label for="quantity">Количество:</label>
+                            <input type="number" id="quantity" name="quantity" class="form-control" 
+                                   value="1" min="1" max="${stockQuantity}" step="1">
+                        </div>
+                        <p><strong>Итого:</strong> <span id="totalPrice">${finalPrice.toFixed(2)}</span> ₽</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary modal-cancel">Отмена</button>
+                        <button type="button" class="btn btn-primary modal-confirm" 
+                                onclick="confirmOrder(${productId}, ${finalPrice}, ${discountPercent})">
+                            Подтвердить заказ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = document.getElementById('orderModal');
+        const closeBtn = modal.querySelector('.modal-close');
+        const cancelBtn = modal.querySelector('.modal-cancel');
+        const quantityInput = document.getElementById('quantity');
+        const totalSpan = document.getElementById('totalPrice');
+        
+        quantityInput.addEventListener('input', function() {
+            const qty = parseInt(this.value) || 1;
+            const total = finalPrice * qty;
+            totalSpan.textContent = total.toFixed(2);
+        });
+        
+        function closeModal() {
+            modal.remove();
+        }
+        
+        closeBtn.onclick = closeModal;
+        cancelBtn.onclick = closeModal;
+        window.onclick = function(event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+    }
+    
+    window.confirmOrder = function(productId, price, discountPercent) {
+        const quantity = document.getElementById('quantity').value;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/order/create/${productId}`;
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'quantity';
+        input.value = quantity;
+        form.appendChild(input);
+        
+        document.body.appendChild(form);
+        form.submit();
+    };
+    
     function updateProductsDisplay(products) {
-        const container = document.getElementById('products-container');
         const userRole = '{{ session.role }}';
         
         if (products.length === 0) {
-            container.innerHTML = '<div class="no-products"><p>Товары не найдены</p></div>';
+            productsContainer.innerHTML = `
+                <div class="no-products">
+                    <p>Товары не найдены</p>
+                    <p class="no-products-hint">Попробуйте изменить параметры поиска или фильтрации</p>
+                    <button onclick="resetAllFilters()" class="btn btn-primary reset-filters-btn">Сбросить фильтры</button>
+                </div>
+            `;
             return;
         }
         
-        container.innerHTML = products.map(product => {
+        productsContainer.innerHTML = products.map(product => {
             const discountClass = product.discount_percent > 15 ? 'discount-high' : '';
             const stockClass = product.stock_quantity === 0 ? 'stock-zero' : '';
-            const imagePath = product.image_path ? `/static/${product.image_path}` : '/static/picture.png';
+            let imagePath = product.image_path ? `/static/${product.image_path}` : '/static/picture.png';
+            imagePath = imagePath.replace(/\\/g, '/');
             
             let priceHtml = '';
             if (product.discount_percent > 0) {
                 priceHtml = `
                     <span class="old-price">${product.price.toFixed(2)} ₽</span>
                     <span class="final-price">${product.final_price.toFixed(2)} ₽</span>
+                    <div class="discount-badge">-${product.discount_percent}%</div>
                 `;
             } else {
-                priceHtml = `${product.price.toFixed(2)} ₽`;
+                priceHtml = `<span class="final-price">${product.price.toFixed(2)} ₽</span>`;
             }
             
             let actionsHtml = '';
             if (userRole === 'АвторизованныйКлиент' && product.stock_quantity > 0) {
-                actionsHtml = `<button class="btn btn-primary order-btn" onclick="orderProduct(${product.id})">Заказать</button>`;
+                actionsHtml = `
+                    <button class="btn btn-primary order-btn" 
+                            onclick="showOrderModal(${product.id}, '${escapeHtml(product.name)}', 
+                                     ${product.price}, ${product.final_price}, 
+                                     ${product.discount_percent}, ${product.stock_quantity})">
+                        Заказать
+                    </button>
+                `;
             } else if (userRole === 'Администратор') {
                 actionsHtml = `
                     <div class="admin-buttons">
                         <a href="/product/edit/${product.id}" class="btn btn-secondary">Редактировать</a>
                         <a href="/product/delete/${product.id}" class="btn btn-danger delete-btn" 
-                           onclick="return confirm('Вы уверены, что хотите удалить товар \'${product.name}\'?')">Удалить</a>
+                           onclick="return confirm('Вы уверены, что хотите удалить товар "${product.name.replace(/"/g, '&quot;')}"?')">
+                           Удалить
+                        </a>
                     </div>
                 `;
+            } else if (userRole === 'АвторизованныйКлиент' && product.stock_quantity === 0) {
+                actionsHtml = `<button class="btn btn-secondary order-btn" disabled style="opacity:0.5;">Нет в наличии</button>`;
+            }
+            
+            let stockHtml = '';
+            if (product.stock_quantity === 0) {
+                stockHtml = '<span class="stock-zero-text">Нет в наличии</span>';
+            } else if (product.stock_quantity < 10) {
+                stockHtml = `<span class="stock-low-text">Осталось: ${product.stock_quantity} шт.</span>`;
+            } else {
+                stockHtml = `<span>В наличии: ${product.stock_quantity} шт.</span>`;
             }
             
             return `
                 <div class="product-card ${discountClass} ${stockClass}">
-                    <img src="${imagePath}" alt="${product.name}" class="product-image">
-                    <div class="product-name">${product.name}</div>
-                    ${product.discount_percent > 0 ? `<div class="discount-badge">Скидка ${product.discount_percent}%</div>` : ''}
+                    <img src="${imagePath}" alt="${escapeHtml(product.name)}" class="product-image"
+                         onerror="this.src='/static/picture.png'">
+                    <div class="product-name">${escapeHtml(product.name)}</div>
                     <div class="product-price">${priceHtml}</div>
                     <div class="product-info">
-                        Категория: ${product.category_name}<br>
-                        Производитель: ${product.manufacturer_name}<br>
-                        Поставщик: ${product.supplier_name}<br>
-                        Единица: ${product.unit}<br>
-                        На складе: <span class="stock-quantity">${product.stock_quantity}</span>
+                        <div>Категория: ${escapeHtml(product.category_name || '-')}</div>
+                        <div>Производитель: ${escapeHtml(product.manufacturer_name || '-')}</div>
+                        <div>Поставщик: ${escapeHtml(product.supplier_name || '-')}</div>
+                        <div>Единица: ${escapeHtml(product.unit || '-')}</div>
+                        <div>${stockHtml}</div>
                     </div>
                     <div class="product-actions">
                         ${actionsHtml}
@@ -234,8 +306,74 @@
         }).join('');
     }
     
-    function orderProduct(productId) {
-        alert('Функция оформления заказа будет реализована в следующей версии');
+    function escapeHtml(text) {
+        if (!text) return '-';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
+    
+    function resetAllFilters() {
+        currentSearch = '';
+        currentSupplier = 'all';
+        currentSortBy = 'name';
+        currentSortOrder = 'asc';
+        
+        if (searchInput) searchInput.value = '';
+        if (supplierSelect) supplierSelect.value = 'all';
+        
+        updateActiveSortButtons();
+        loadProducts();
+        
+        const url = new URL(window.location.href);
+        url.searchParams.set('search', '');
+        url.searchParams.set('supplier', 'all');
+        url.searchParams.set('sort_by', 'name');
+        url.searchParams.set('sort_order', 'asc');
+        window.history.pushState({}, '', url);
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                currentSearch = this.value;
+                loadProducts();
+            }, 300);
+        });
+    }
+    
+    if (supplierSelect) {
+        supplierSelect.addEventListener('change', function() {
+            currentSupplier = this.value;
+            loadProducts();
+        });
+    }
+    
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const sortBy = this.dataset.sort;
+            const order = this.dataset.order;
+            
+            if (currentSortBy === sortBy && currentSortOrder === order) {
+                return;
+            }
+            
+            currentSortBy = sortBy;
+            currentSortOrder = order;
+            
+            updateActiveSortButtons();
+            loadProducts();
+        });
+    });
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetAllFilters);
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        updateActiveSortButtons();
+        loadProducts();
+    });
 </script>
 {% endblock %}

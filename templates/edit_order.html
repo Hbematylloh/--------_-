@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование заказа №{{ order.id }} - АвтоПартс{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/edit_order.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="logo-container">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="АвтоПартс" class="logo">
+        <div>
+            <h1>АвтоПартс</h1>
+            <p>Редактирование заказа №{{ order.id }}</p>
+        </div>
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">{{ session.full_name }}</div>
+        <div class="user-role">{{ session.role }}</div>
+        <a href="{{ url_for('orders') }}" class="btn btn-secondary" style="margin-right: 10px;">Все заказы</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-secondary logout-btn">Выход</a>
+    </div>
+</div>
+
+<div class="container">
+    <a href="{{ url_for('orders') }}" class="btn btn-secondary back-btn">← Назад к заказам</a>
+    
+    <form method="POST" class="edit-order-form" id="editOrderForm" onsubmit="return validateForm()">
+        <div class="order-info">
+            <p><strong>Клиент:</strong> {{ order.user_name }}</p>
+            <p><strong>Дата заказа:</strong> {{ order.created_at }}</p>
+            <p><strong>Сумма заказа:</strong> {{ "%.2f"|format(order.total_amount) }} ₽</p>
+        </div>
+        
+        <div class="form-group">
+            <label for="status">Статус заказа:</label>
+            <select id="status" name="status" class="form-control" required>
+                <option value="placed" {% if order.status == 'placed' %}selected{% endif %}>Оформлен</option>
+                <option value="processing" {% if order.status == 'processing' %}selected{% endif %}>В обработке</option>
+                <option value="shipped" {% if order.status == 'shipped' %}selected{% endif %}>Отправлен</option>
+                <option value="delivered" {% if order.status == 'delivered' %}selected{% endif %}>Доставлен</option>
+                <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>Отменен</option>
+            </select>
+            <small class="form-hint" id="statusHint"></small>
+        </div>
+        
+        <div class="form-group">
+            <label for="delivery_date">Дата поставки:</label>
+            <input type="date" id="delivery_date" name="delivery_date" class="form-control" 
+                   value="{{ order.delivery_date }}" required
+                   min="2020-01-01" max="2030-12-31">
+            <small class="form-hint" id="dateHint">Дата поставки должна быть между 2020-01-01 и 2030-12-31</small>
+        </div>
+        
+        <h3>Состав заказа</h3>
+        <div class="table-container">
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Артикул</th>
+                        <th>Наименование</th>
+                        <th>Кол-во</th>
+                        <th>Цена</th>
+                        <th>Скидка</th>
+                        <th>Сумма</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.product_sku }}</td>
+                        <td>{{ item.product_name }}</td>
+                        <td>{{ item.quantity }}</td>
+                        <td>{{ "%.2f"|format(item.price_at_moment) }} ₽</a></td>
+                        <td>{{ item.discount_percent_moment }}%</a></td>
+                        <td>{{ "%.2f"|format(item.total) }} ₽</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="total-row">
+            Итого: {{ "%.2f"|format(order.total_amount) }} ₽
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="submitBtn">Сохранить изменения</button>
+            <button type="button" class="btn btn-danger" onclick="cancelOrder({{ order.id }})" id="cancelOrderBtn">Отменить заказ</button>
+            <a href="{{ url_for('orders') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<script>
+// Получаем дату заказа для проверки
+const orderDate = '{{ order.created_at }}';
+const currentStatus = '{{ order.status }}';
+
+// Ограничения по статусам
+const statusRestrictions = {
+    'placed': {
+        next: ['processing', 'cancelled'],
+        message: 'Можно изменить на: В обработке, Отменен'
+    },
+    'processing': {
+        next: ['shipped', 'cancelled'],
+        message: 'Можно изменить на: Отправлен, Отменен'
+    },
+    'shipped': {
+        next: ['delivered'],
+        message: 'Можно изменить на: Доставлен'
+    },
+    'delivered': {
+        next: [],
+        message: 'Доставленный заказ нельзя изменить'
+    },
+    'cancelled': {
+        next: [],
+        message: 'Отмененный заказ нельзя изменить'
+    }
+};
+
+// Функция проверки даты
+function isValidDate(dateString) {
+    if (!dateString) return false;
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!regex.test(dateString)) return false;
+    
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    
+    // Проверка на корректный год (между 2020 и 2030)
+    if (year < 2020 || year > 2030) return false;
+    
+    // Проверка что дата не NaN
+    if (isNaN(date.getTime())) return false;
+    
+    return true;
+}
+
+// Функция проверки статуса
+function validateStatusChange() {
+    const statusSelect = document.getElementById('status');
+    const selectedStatus = statusSelect.value;
+    const hintSpan = document.getElementById('statusHint');
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('cancelOrderBtn');
+    
+    if (currentStatus === 'delivered') {
+        statusSelect.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+        hintSpan.innerHTML = '<span style="color: red;">Доставленный заказ нельзя редактировать или отменять</span>';
+        return false;
+    }
+    
+    if (currentStatus === 'cancelled') {
+        statusSelect.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+        hintSpan.innerHTML = '<span style="color: red;">Отмененный заказ нельзя редактировать</span>';
+        return false;
+    }
+    
+    const restrictions = statusRestrictions[currentStatus];
+    if (restrictions && restrictions.next.length > 0) {
+        if (!restrictions.next.includes(selectedStatus)) {
+            hintSpan.innerHTML = '<span style="color: orange;">Предупреждение: ' + restrictions.message + '</span>';
+            return true;
+        } else {
+            hintSpan.innerHTML = '<span style="color: green;">Допустимое изменение статуса</span>';
+        }
+    }
+    
+    return true;
+}
+
+// Функция проверки даты поставки
+function validateDeliveryDate() {
+    const deliveryDateInput = document.getElementById('delivery_date');
+    const deliveryDate = deliveryDateInput.value;
+    const hintSpan = document.getElementById('dateHint');
+    
+    if (!deliveryDate) {
+        hintSpan.innerHTML = '<span style="color: red;">Ошибка: Дата поставки обязательна</span>';
+        return false;
+    }
+    
+    // Проверка формата даты
+    if (!isValidDate(deliveryDate)) {
+        hintSpan.innerHTML = '<span style="color: red;">Ошибка: Неверный формат даты. Используйте ГГГГ-ММ-ДД</span>';
+        return false;
+    }
+    
+    // Проверка что дата не раньше даты заказа
+    if (deliveryDate < orderDate) {
+        hintSpan.innerHTML = '<span style="color: red;">Ошибка: Дата поставки не может быть раньше даты заказа (' + orderDate + ')</span>';
+        return false;
+    }
+    
+    // Проверка что дата не слишком далеко (максимум 30 дней)
+    const orderDateObj = new Date(orderDate);
+    const deliveryDateObj = new Date(deliveryDate);
+    const daysDiff = Math.ceil((deliveryDateObj - orderDateObj) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff > 30) {
+        hintSpan.innerHTML = '<span style="color: orange;">Предупреждение: Дата поставки на ' + daysDiff + ' дней позже даты заказа (рекомендуется не более 30 дней)</span>';
+    } else if (daysDiff < 0) {
+        hintSpan.innerHTML = '<span style="color: red;">Ошибка: Дата поставки не может быть раньше даты заказа</span>';
+        return false;
+    } else {
+        hintSpan.innerHTML = '<span style="color: green;">Корректная дата поставки</span>';
+    }
+    
+    return true;
+}
+
+// Валидация всей формы перед отправкой
+function validateForm() {
+    const deliveryDate = document.getElementById('delivery_date').value;
+    const statusSelect = document.getElementById('status');
+    const selectedStatus = statusSelect.value;
+    
+    let errors = [];
+    
+    // Проверка даты
+    if (!deliveryDate) {
+        errors.push('Дата поставки обязательна');
+    } else if (!isValidDate(deliveryDate)) {
+        errors.push('Неверный формат даты поставки');
+    } else if (deliveryDate < orderDate) {
+        errors.push('Дата поставки не может быть раньше даты заказа');
+    }
+    
+    // Проверка статуса
+    if (currentStatus === 'delivered') {
+        errors.push('Доставленный заказ нельзя редактировать');
+    }
+    
+    if (currentStatus === 'cancelled') {
+        errors.push('Отмененный заказ нельзя редактировать');
+    }
+    
+    // Проверка переходов статусов
+    const restrictions = statusRestrictions[currentStatus];
+    if (restrictions && restrictions.next.length > 0 && currentStatus !== 'delivered' && currentStatus !== 'cancelled') {
+        if (!restrictions.next.includes(selectedStatus) && selectedStatus !== currentStatus) {
+            if (!confirm('Внимание! Вы пытаетесь изменить статус с "' + getStatusText(currentStatus) + '" на "' + getStatusText(selectedStatus) + '".\n' + restrictions.message + '\nПродолжить?')) {
+                return false;
+            }
+        }
+    }
+    
+    if (errors.length > 0) {
+        alert('Ошибки при сохранении:\n' + errors.join('\n'));
+        return false;
+    }
+    
+    return true;
+}
+
+function getStatusText(status) {
+    const statusMap = {
+        'placed': 'Оформлен',
+        'processing': 'В обработке',
+        'shipped': 'Отправлен',
+        'delivered': 'Доставлен',
+        'cancelled': 'Отменен'
+    };
+    return statusMap[status] || status;
+}
+
+function initRestrictions() {
+    const statusSelect = document.getElementById('status');
+    const cancelBtn = document.getElementById('cancelOrderBtn');
+    const deliveryDateInput = document.getElementById('delivery_date');
+    
+    if (currentStatus === 'delivered' || currentStatus === 'cancelled') {
+        if (cancelBtn) {
+            cancelBtn.disabled = true;
+            cancelBtn.title = 'Невозможно отменить доставленный или отмененный заказ';
+        }
+        if (deliveryDateInput) deliveryDateInput.disabled = true;
+        if (statusSelect) statusSelect.disabled = true;
+    }
+    
+    if (statusSelect) {
+        statusSelect.addEventListener('change', validateStatusChange);
+        validateStatusChange();
+    }
+    
+    if (deliveryDateInput) {
+        deliveryDateInput.addEventListener('change', validateDeliveryDate);
+        deliveryDateInput.addEventListener('input', validateDeliveryDate);
+        validateDeliveryDate();
+    }
+}
+
+function cancelOrder(orderId) {
+    if (currentStatus === 'delivered') {
+        alert('Нельзя отменить доставленный заказ');
+        return;
+    }
+    
+    if (currentStatus === 'cancelled') {
+        alert('Заказ уже отменен');
+        return;
+    }
+    
+    if (confirm('Вы уверены, что хотите отменить заказ №' + orderId + '?\n\nТовары будут возвращены на склад.\nЭто действие нельзя отменить.')) {
+        const cancelBtn = document.getElementById('cancelOrderBtn');
+        if (cancelBtn) {
+            cancelBtn.disabled = true;
+            cancelBtn.textContent = 'Отмена...';
+        }
+        
+        fetch('/order/cancel/' + orderId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            if (data.success) {
+                alert(data.message);
+                window.location.href = "{{ url_for('orders') }}";
+            } else {
+                alert('Ошибка: ' + data.error);
+                if (cancelBtn) {
+                    cancelBtn.disabled = false;
+                    cancelBtn.textContent = 'Отменить заказ';
+                }
+            }
+        })
+        .catch(function(error) {
+            console.error('Ошибка:', error);
+            alert('Ошибка при отмене заказа');
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = 'Отменить заказ';
+            }
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initRestrictions);
+</script>
+{% endblock %}

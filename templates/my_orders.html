@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Заказы - АвтоПартс{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/orders.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="logo-container">
+        <img src="{{ url_for('static', filename='logo.png') }}" alt="АвтоПартс" class="logo">
+        <div>
+            <p>Управление заказами</p>
+        </div>
+    </div>
+    
+    <div class="user-info">
+        <div class="user-name">{{ session.full_name }}</div>
+        <div class="user-role">{{ session.role }}</div>
+        <a href="{{ url_for('logout') }}" class="btn btn-secondary logout-btn">Выход</a>
+    </div>
+</div>
+
+<div class="container">
+    <a href="{{ url_for('products') }}" class="btn btn-secondary back-btn">← Назад к товарам</a>
+    
+    <h2>Список заказов</h2>
+    
+    {% if orders %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID заказа</th>
+                <th>Клиент</th>
+                <th>Статус</th>
+                <th>Дата заказа</th>
+                <th>Дата поставки</th>
+                <th>Товаров</th>
+                <th>Сумма</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order.id }}</a></td>
+                <td>{{ order.user_name }}</a></td>
+                <td>
+                    <span class="status-badge status-{{ order.status }}">
+                        {% if order.status == 'placed' %}Оформлен
+                        {% elif order.status == 'processing' %}В обработке
+                        {% elif order.status == 'shipped' %}Отправлен
+                        {% elif order.status == 'delivered' %}Доставлен
+                        {% elif order.status == 'cancelled' %}Отменен
+                        {% else %}{{ order.status }}{% endif %}
+                    </span>
+                </td>
+                <td>{{ order.created_at }}</a></td>
+                <td>{{ order.delivery_date }}</a></td>
+                <td>{{ order.items_count }}</a></td>
+                <td>{{ "%.2f"|format(order.total_amount) }} ₽</a></td>
+                <td>
+                    <button class="btn btn-secondary btn-sm view-btn" onclick="viewOrderDetails({{ order.id }})">Просмотреть</button>
+                </a>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="no-orders">
+        <p>Заказы не найдены</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function viewOrderDetails(orderId) {
+    fetch(`/api/order/${orderId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            let itemsHtml = '';
+            data.items.forEach(item => {
+                itemsHtml += `
+                    <tr>
+                        <td>${item.product_sku}</td>
+                        <td>${item.product_name}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.price_at_moment.toFixed(2)} ₽</td>
+                        <td>${item.discount_percent_moment}%</td>
+                        <td>${(item.quantity * item.price_at_moment * (1 - item.discount_percent_moment/100)).toFixed(2)} ₽</td>
+                    </tr>
+                `;
+            });
+            
+            alert(`Заказ №${orderId}\nТоваров: ${data.count}\n\nСписок товаров:\n${data.items.map(i => `${i.product_name} x${i.quantity} = ${(i.quantity * i.price_at_moment * (1 - i.discount_percent_moment/100)).toFixed(2)} ₽`).join('\n')}`);
+        })
+        .catch(error => console.error('Ошибка:', error));
+}
+</script>
+{% endblock %}

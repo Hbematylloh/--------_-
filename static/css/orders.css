@@ -136,3 +136,23 @@
         font-size: 16px;
     }
 }
+
+/* Добавить в конец файла orders.css */
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+    margin: 0 2px;
+}
+
+.status-select {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: white;
+    cursor: pointer;
+}
+
+.status-select:hover {
+    border-color: #00FA9A;
+}
