@@ -7,7 +7,7 @@ from PIL import Image
 import io
 import hashlib
 import re
-from datetime import datetime
+from datetime import datetime, date
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here-change-this-in-production'
@@ -238,6 +238,7 @@ def create_order(product_id):
     
     quantity = int(request.form.get('quantity', 1))
     
+    # Проверка на отрицательное количество
     if quantity < 1:
         flash('Количество товара должно быть не менее 1', 'error')
         return redirect(url_for('products'))
@@ -339,10 +340,21 @@ def order_detail(order_id):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
+        # Получаем заказ с проверкой прав
         if session.get('role') == 'АвторизованныйКлиент':
-            cur.execute("SELECT * FROM orders WHERE id = %s AND user_id = %s", (order_id, session['user_id']))
+            cur.execute("""
+                SELECT o.*, u.full_name as user_name 
+                FROM orders o
+                LEFT JOIN users u ON o.user_id = u.id
+                WHERE o.id = %s AND o.user_id = %s
+            """, (order_id, session['user_id']))
         else:
-            cur.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
+            cur.execute("""
+                SELECT o.*, u.full_name as user_name 
+                FROM orders o
+                LEFT JOIN users u ON o.user_id = u.id
+                WHERE o.id = %s
+            """, (order_id,))
         
         order = cur.fetchone()
         
@@ -350,6 +362,7 @@ def order_detail(order_id):
             flash('Заказ не найден', 'error')
             return redirect(url_for('products'))
         
+        # Получаем товары в заказе (отдельный запрос)
         cur.execute("""
             SELECT oi.*, p.name as product_name, p.sku as product_sku, p.image_path
             FROM order_items oi
@@ -358,12 +371,7 @@ def order_detail(order_id):
         """, (order_id,))
         items = cur.fetchall()
         
-        cur.execute("SELECT full_name FROM users WHERE id = %s", (order['user_id'],))
-        user = cur.fetchone()
-        
-        order['user_name'] = user['full_name'] if user else 'Неизвестно'
-        order['pickup_address'] = 'Самовывоз'
-        
+        # Вычисляем итоговую сумму
         total_amount = 0
         for item in items:
             item_total = item['quantity'] * item['price_at_moment'] * (1 - item['discount_percent_moment'] / 100)
@@ -371,17 +379,19 @@ def order_detail(order_id):
             item['total'] = item_total
         
         order['total_amount'] = total_amount
+        order['pickup_address'] = 'Самовывоз'
         
-    except Exception as e:
-        flash(f'Ошибка при загрузке заказа: {str(e)}', 'error')
-        return redirect(url_for('products'))
-    finally:
+        # Закрываем соединение перед рендерингом
         cur.close()
         conn.close()
+        
+        return render_template('order_detail.html', order=order, items=items)
+        
+    except Exception as e:
+        print(f"Ошибка при загрузке заказа: {e}")
+        flash(f'Ошибка при загрузке заказа: {str(e)}', 'error')
+        return redirect(url_for('products'))
     
-    return render_template('order_detail.html', order=order, items=items)
-
-# Редактирование заказа - ТОЛЬКО ОДИН МАРШРУТ
 @app.route('/order/edit/<int:order_id>', methods=['GET', 'POST'])
 def edit_order(order_id):
     if session.get('role') != 'Администратор':
@@ -401,25 +411,16 @@ def edit_order(order_id):
                 flash('Неверный статус заказа', 'error')
                 return redirect(request.url)
             
-            # Валидация даты поставки
             if not delivery_date:
                 flash('Дата поставки обязательна', 'error')
                 return redirect(request.url)
             
-            # Проверка формата даты
             try:
                 datetime.strptime(delivery_date, '%Y-%m-%d')
             except ValueError:
                 flash('Неверный формат даты. Используйте ГГГГ-ММ-ДД', 'error')
                 return redirect(request.url)
             
-            # Проверка года (от 2020 до 2030)
-            year = int(delivery_date[:4])
-            if year < 2020 or year > 2030:
-                flash('Год поставки должен быть между 2020 и 2030', 'error')
-                return redirect(request.url)
-            
-            # Получаем текущий статус и дату заказа
             cur.execute("SELECT status, created_at FROM orders WHERE id = %s", (order_id,))
             current_order = cur.fetchone()
             
@@ -431,22 +432,9 @@ def edit_order(order_id):
                 flash(f'Нельзя редактировать {get_status_text(current_order["status"])} заказ', 'error')
                 return redirect(url_for('orders'))
             
-            # Проверка даты поставки (не раньше даты заказа)
-            created_at_str = str(current_order['created_at'])
-            if delivery_date < created_at_str:
+            if delivery_date < str(current_order['created_at']):
                 flash('Дата поставки не может быть раньше даты заказа', 'error')
                 return redirect(request.url)
-            
-            # Проверка разницы в днях (не более 30 дней)
-            from datetime import date
-            created_date = datetime.strptime(created_at_str, '%Y-%m-%d').date()
-            delivery_date_obj = datetime.strptime(delivery_date, '%Y-%m-%d').date()
-            days_diff = (delivery_date_obj - created_date).days
-            
-            if days_diff > 30:
-                if not request.form.get('ignore_warning'):
-                    flash(f'Внимание! Дата поставки на {days_diff} дней позже даты заказа. Рекомендуется не более 30 дней. Нажмите "Сохранить" еще раз для подтверждения.', 'warning')
-                    return render_template('edit_order.html', order=order, items=items, show_warning=True)
             
             if not is_status_transition_allowed(current_order['status'], status):
                 flash(f'Недопустимый переход статуса с "{get_status_text(current_order["status"])}" на "{get_status_text(status)}"', 'error')
@@ -480,13 +468,6 @@ def edit_order(order_id):
                 flash('Заказ не найден', 'error')
                 return redirect(url_for('orders'))
             
-            # Обработка некорректной даты
-            if order['delivery_date']:
-                try:
-                    datetime.strptime(str(order['delivery_date']), '%Y-%m-%d')
-                except ValueError:
-                    order['delivery_date'] = datetime.now().date()
-            
             cur.execute("SELECT full_name FROM users WHERE id = %s", (order['user_id'],))
             user = cur.fetchone()
             order['user_name'] = user['full_name'] if user else 'Неизвестно'
@@ -515,7 +496,7 @@ def edit_order(order_id):
             cur.close()
             conn.close()
 
-# Отмена заказа
+# Отмена заказа с возвратом товаров на склад
 @app.route('/order/cancel/<int:order_id>', methods=['POST'])
 def cancel_order(order_id):
     if session.get('role') != 'Администратор':
@@ -525,6 +506,7 @@ def cancel_order(order_id):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
+        # Проверяем статус заказа
         cur.execute("SELECT status FROM orders WHERE id = %s", (order_id,))
         order = cur.fetchone()
         
@@ -534,20 +516,30 @@ def cancel_order(order_id):
         if order['status'] in ['delivered', 'cancelled']:
             return jsonify({'error': f'Нельзя отменить {get_status_text(order["status"])} заказ'}), 400
         
+        # Получаем все товары в заказе
         cur.execute("""
-            SELECT oi.product_id, oi.quantity
-            FROM order_items oi
-            WHERE oi.order_id = %s
+            SELECT product_id, quantity
+            FROM order_items
+            WHERE order_id = %s
         """, (order_id,))
         items = cur.fetchall()
         
+        print(f"Отмена заказа {order_id}. Возвращаем товары: {items}")
+        
+        # Возвращаем каждый товар на склад
         for item in items:
             cur.execute("""
                 UPDATE products 
                 SET stock_quantity = stock_quantity + %s 
                 WHERE id = %s
             """, (item['quantity'], item['product_id']))
+            
+            # Проверяем обновление
+            cur.execute("SELECT stock_quantity FROM products WHERE id = %s", (item['product_id'],))
+            updated = cur.fetchone()
+            print(f"Товар {item['product_id']}: новый остаток = {updated['stock_quantity']}")
         
+        # Обновляем статус заказа
         cur.execute("""
             UPDATE orders 
             SET status = 'cancelled' 
@@ -559,6 +551,7 @@ def cancel_order(order_id):
         
     except Exception as e:
         conn.rollback()
+        print(f"Ошибка при отмене заказа: {e}")
         return jsonify({'error': str(e)}), 500
     finally:
         cur.close()

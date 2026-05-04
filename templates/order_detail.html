@@ -94,19 +94,19 @@
                         {% else %}
                             <img src="/static/picture.png" class="product-image-small">
                         {% endif %}
-                    </td>
-                    <td>{{ item.product_sku }}</td>
-                    <td>{{ item.product_name }}</td>
-                    <td>{{ "%.2f"|format(item.price_at_moment) }} ₽</td>
+                    </a>
+                    <td>{{ item.product_sku }}</a></td>
+                    <td>{{ item.product_name }}</a></td>
+                    <td>{{ "%.2f"|format(item.price_at_moment) }} ₽</a></td>
                     <td>
                         {% if item.discount_percent_moment > 0 %}
                             {{ item.discount_percent_moment }}%
                         {% else %}
                             -
                         {% endif %}
-                    </td>
-                    <td>{{ item.quantity }}</td>
-                    <td>{{ "%.2f"|format(item.total) }} ₽</td>
+                    </a>
+                    <td>{{ item.quantity }}</a></td>
+                    <td>{{ "%.2f"|format(item.total) }} ₽</a></td>
                 </tr>
                 {% endfor %}
             </tbody>

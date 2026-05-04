@@ -107,6 +107,14 @@
     const productsContainer = document.getElementById('products-container');
     const resetBtn = document.getElementById('resetFiltersBtn');
     
+    function disableBodyScroll() {
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function enableBodyScroll() {
+        document.body.style.overflow = '';
+    }
+    
     function updateActiveSortButtons() {
         document.querySelectorAll('.sort-btn').forEach(btn => {
             btn.classList.remove('active', 'asc', 'desc');
@@ -164,13 +172,14 @@
                             <label for="quantity">Количество:</label>
                             <input type="number" id="quantity" name="quantity" class="form-control" 
                                    value="1" min="1" max="${stockQuantity}" step="1">
+                            <small class="error-message" id="quantityError" style="color: red; display: none;">Количество должно быть от 1 до ${stockQuantity}</small>
                         </div>
                         <p><strong>Итого:</strong> <span id="totalPrice">${finalPrice.toFixed(2)}</span> ₽</p>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary modal-cancel">Отмена</button>
                         <button type="button" class="btn btn-primary modal-confirm" 
-                                onclick="confirmOrder(${productId}, ${finalPrice}, ${discountPercent})">
+                                onclick="confirmOrder(${productId}, ${finalPrice})">
                             Подтвердить заказ
                         </button>
                     </div>
@@ -185,28 +194,106 @@
         const cancelBtn = modal.querySelector('.modal-cancel');
         const quantityInput = document.getElementById('quantity');
         const totalSpan = document.getElementById('totalPrice');
+        const confirmBtn = modal.querySelector('.modal-confirm');
+        const errorMsg = document.getElementById('quantityError');
         
-        quantityInput.addEventListener('input', function() {
-            const qty = parseInt(this.value) || 1;
+        disableBodyScroll();
+        
+        function updateTotal() {
+            let qty = parseInt(quantityInput.value);
+            const maxQty = parseInt(quantityInput.max);
+            
+            // Проверка на отрицательное число и NaN
+            if (isNaN(qty) || qty < 1) {
+                qty = 1;
+                quantityInput.value = 1;
+            }
+            
+            // Проверка на превышение максимума
+            if (qty > maxQty) {
+                qty = maxQty;
+                quantityInput.value = maxQty;
+                errorMsg.style.display = 'block';
+            } else {
+                errorMsg.style.display = 'none';
+            }
+            
             const total = finalPrice * qty;
             totalSpan.textContent = total.toFixed(2);
+            
+            // Блокируем кнопку если количество некорректно
+            if (confirmBtn) {
+                confirmBtn.disabled = (qty < 1 || qty > maxQty);
+            }
+        }
+        
+        quantityInput.addEventListener('input', function() {
+            let qty = parseInt(this.value);
+            const maxQty = parseInt(this.max);
+            
+            // Блокируем отрицательные числа
+            if (qty < 1 || isNaN(qty)) {
+                this.value = 1;
+                qty = 1;
+            }
+            
+            // Блокируем превышение максимума
+            if (qty > maxQty) {
+                this.value = maxQty;
+                qty = maxQty;
+                errorMsg.style.display = 'block';
+            } else {
+                errorMsg.style.display = 'none';
+            }
+            
+            const total = finalPrice * qty;
+            totalSpan.textContent = total.toFixed(2);
+            
+            if (confirmBtn) {
+                confirmBtn.disabled = (qty < 1 || qty > maxQty);
+            }
         });
         
         function closeModal() {
+            enableBodyScroll();
             modal.remove();
         }
         
+        // Закрытие только по крестику или кнопке Отмена
         closeBtn.onclick = closeModal;
         cancelBtn.onclick = closeModal;
-        window.onclick = function(event) {
-            if (event.target === modal) {
+        
+        // Убираем закрытие по клику вне окна
+        // window.onclick = function(event) {
+        //     if (event.target === modal) {
+        //         closeModal();
+        //     }
+        // };
+        
+        // Закрытие по Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('orderModal')) {
                 closeModal();
             }
-        };
+        });
     }
     
-    window.confirmOrder = function(productId, price, discountPercent) {
-        const quantity = document.getElementById('quantity').value;
+    window.confirmOrder = function(productId, finalPrice) {
+        const quantityInput = document.getElementById('quantity');
+        let quantity = parseInt(quantityInput.value);
+        const maxQty = parseInt(quantityInput.max);
+        
+        // Финальная проверка
+        if (isNaN(quantity) || quantity < 1) {
+            alert('Количество должно быть не менее 1');
+            return;
+        }
+        
+        if (quantity > maxQty) {
+            alert(`Недостаточно товара на складе. Доступно: ${maxQty} шт.`);
+            return;
+        }
+        
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/order/create/${productId}`;
